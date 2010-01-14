@@ -12,7 +12,7 @@ GEMSSRC=rubygems-1.3.5
 XMPPSRC=xmpp4r-0.5
 
 PREFIX=/Users/mac/gaoh
-SRCDIR=${PREFIX}/src
+SRCDIR=${PREFIX}/usr/src
 
 pushd ${PREFIX}/usr/build
 
