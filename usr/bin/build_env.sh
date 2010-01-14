@@ -1,34 +1,35 @@
 #!/bin/bash -ex
 
 if [ -z "$1" ]; then
-  echo "Need a prefix for where to put it all"
+  echo "Need a basedir for where to put it all"
   exit 1
 fi
 
-PATH=/sbin:/bin:/usr/sbin:/usr/bin:${PREFIX}/bin
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:${BASEDIR}/usr/bin
 
 RUBYSRC=ruby-1.8.7-p248
 GEMSSRC=rubygems-1.3.5
 XMPPSRC=xmpp4r-0.5
 
-PREFIX=/Users/mac/gaoh
-SRCDIR=${PREFIX}/usr/src
+BASEDIR=/Users/mac/gaoh
+BINDIR=${BASEDIR}/usr/bin
+SRCDIR=${BASEDIR}/usr/src
 
-pushd ${PREFIX}/usr/build
+pushd ${BASEDIR}/usr/build
 
 tar -zxf ${SRCDIR}/${RUBYSRC}.tar.gz
 cd ${RUBYSRC}
-./configure --prefix=${PREFIX} --enable-pthread
+./configure --prefix=${BASEDIR}/usr --enable-pthread
 make
 make install
 cd ..
 
 tar -zxf ${SRCDIR}/${GEMSSRC}.tgz
 cd ${GEMSSRC}
-${PREFIX}/bin/ruby setup.rb install
+${BINDIR}/ruby setup.rb install
 cd ..
 
-${PREFIX}/bin/gem install ${SRCDIR}/${XMPPSRC}.gem
+${BINDIR}/gem install ${SRCDIR}/${XMPPSRC}.gem
 
 popd
 
