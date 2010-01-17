@@ -11,7 +11,7 @@ RUBYSRC=ruby-1.8.7-p248
 GEMSSRC=rubygems-1.3.5
 XMPPSRC=xmpp4r-0.5
 
-BASEDIR=/Users/mac/gaoh
+BASEDIR=$1
 BINDIR=${BASEDIR}/usr/bin
 SRCDIR=${BASEDIR}/usr/src
 
