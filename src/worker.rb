@@ -74,7 +74,7 @@ class GaohWorker
 
   def run
     @room = Jabber::MUC::MUCClient.new(@xmpp)
-    @room.join(Jabber::JID.new('gaohcommunal@conference.corgalabs.com/gaohworker2'))
+    @room.join(Jabber::JID.new('gaohcommunal@conference.corgalabs.com/' + @jid.node))
     @room.add_message_callback do |m|
       puts m.x
       puts m.body
