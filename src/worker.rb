@@ -1,4 +1,4 @@
-!/bin/env ruby
+#!/bin/env ruby
 
 require 'rubygems'
 require 'xmpp4r'
@@ -31,10 +31,35 @@ class GaohWorker
       exit -2
     end
 
-    @jid = Jabber::JID.new(@config[:jid])
-    @xmpp = Jabber::Client.new(@jid)
-    @xmpp.connect('corgalabs.com')
-    @xmpp.auth(@config[:password])
+    @setup = false
+
+    begin
+      @jid = Jabber::JID.new(@config[:jid])
+      @xmpp = Jabber::Client.new(@jid)
+      @xmpp.connect('corgalabs.com')
+      @xmpp.auth(@config[:password])
+      @setup = true
+    rescue Jabber::ClientAuthenticationFailure => e
+      if attempt_to_register
+        @setup = true
+      end
+    end
+
+    if not @setup
+      puts "Unable to setup"
+      exit -4
+    end
+  end
+
+  def attempt_to_register
+    begin
+      @xmpp.register( @config[:password] )
+      sleep 5
+      @xmpp.auth( @config[:password] )
+    rescue Jabber::ServerError, Jabber::ClientAuthenticationFailure => e
+      puts "Unable to login/register: #{e.class} : #{e}"
+      exit -3
+    end
   end
 
   def work_status
