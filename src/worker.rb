@@ -63,6 +63,14 @@ class GaohWorker
     @state.to_s
   end
 
+  def safe_block(message=nil, *args)
+    begin
+      yield *args
+    rescue StandardError => e
+      puts "safe_block: #{e}"
+    end
+  end
+
   def attempt_to_register
     begin
       @xmpp.register( @config[:password] )
@@ -86,24 +94,27 @@ class GaohWorker
 
   def enter_communal
     @communal = Jabber::MUC::MUCClient.new(@xmpp)
-    @communal.add_message_callback do |m|
-      puts m.x, m.subject, m.body
-      if m.body == "status"
-        begin
-          @communal.send( Jabber::Message.new(nil, status) )
-        rescue StandardError => e
-          puts e
-        end
-      else
-        if m.subject == "task"
-          case m.body
-          when "task1"
-          when "task2"
-          when "task3"
+    @communal.add_message_callback { |m| safe_block("communal", m) do
+        # Ignore it if it was sent before I got here
+        if m.x.nil?
+          puts m.subject, m.body
+          if m.body == "status"
+            begin
+              @communal.send( Jabber::Message.new(nil, status) )
+            rescue StandardError => e
+              puts e
+            end
+          else
+            if m.subject == "task"
+              case m.body
+              when "task1"
+              when "task2"
+              when "task3"
+              end
+            end
           end
         end
-      end
-    end
+      end }
     @communal.add_join_callback do |m|
       puts m.x
     end
