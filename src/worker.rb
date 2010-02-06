@@ -49,6 +49,18 @@ class GaohWorker
       puts "Unable to setup"
       exit -4
     end
+
+    @mainloop = Thread.current
+    @worker   = Thread.new {
+    }
+    @communal = nil
+    @tasks    = {}
+    @state    = :init
+
+  end
+
+  def status
+    @state.to_s
   end
 
   def attempt_to_register
@@ -72,16 +84,46 @@ class GaohWorker
     # This is used to figure out what work to do
   end
 
-  def run
-    @room = Jabber::MUC::MUCClient.new(@xmpp)
-    @room.join(Jabber::JID.new('gaohcommunal@conference.corgalabs.com/' + @jid.node))
-    @room.add_message_callback do |m|
-      puts m.x
-      puts m.body
+  def enter_communal
+    @communal = Jabber::MUC::MUCClient.new(@xmpp)
+    @communal.add_message_callback do |m|
+      puts m.x, m.subject, m.body
+      if m.body == "status"
+        begin
+          @communal.send( Jabber::Message.new(nil, status) )
+        rescue StandardError => e
+          puts e
+        end
+      else
+        if m.subject == "task"
+          case m.body
+          when "task1"
+          when "task2"
+          when "task3"
+          end
+        end
+      end
     end
-    #@room.add_join_callback do |m|
-    #end
-    Thread.stop
+    @communal.add_join_callback do |m|
+      puts m.x
+    end
+    @state = :incommunal
+    @communal.join(Jabber::JID.new('gaoh-communal@conference.corgalabs.com/' + @jid.node))
+  end
+
+  def run
+    while true
+      case @state
+      when :init
+        enter_communal
+      when :incommunal
+      when :exit
+        # cleanup
+        # Lead all the rooms on a good standing
+        return
+      end
+      Thread.stop
+    end
   end
 
 end
