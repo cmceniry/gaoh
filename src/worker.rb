@@ -123,6 +123,10 @@ class GaohWorker
   end
 
   def run
+    if @config[:regonly]
+      puts "Only registering"
+      exit 0
+    end
     while true
       case @state
       when :init
