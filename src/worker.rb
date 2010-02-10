@@ -59,8 +59,8 @@ class GaohWorker
 
   end
 
-  def status
-    @state.to_s
+  def status_message
+    Jabber::Message.new( nil, @state.to_s )
   end
 
   def safe_block(message=nil, *args)
@@ -100,25 +100,26 @@ class GaohWorker
           puts m.subject, m.body
           if m.body == "status"
             begin
-              @communal.send( Jabber::Message.new(nil, status) )
+              @communal.send( status_message )
             rescue StandardError => e
               puts e
             end
+          elsif m.body == "quit"
+            @state = :exit
+            @mainloop.wakeup
           else
-            if m.subject == "task"
-              case m.body
-              when "task1"
-              when "task2"
-              when "task3"
-              end
+            case @state
+            when :idle
+            when :busy
+            else
             end
           end
         end
       end }
-    @communal.add_join_callback do |m|
-      puts m.x
-    end
-    @state = :incommunal
+    @communal.add_join_callback { |m| safe_block("communal", m) do
+        puts m.x
+      end }
+    @state = :idle
     @communal.join(Jabber::JID.new('gaoh-communal@conference.corgalabs.com/' + @jid.node))
   end
 
@@ -131,7 +132,7 @@ class GaohWorker
       case @state
       when :init
         enter_communal
-      when :incommunal
+      when :idle
       when :exit
         # cleanup
         # Lead all the rooms on a good standing
