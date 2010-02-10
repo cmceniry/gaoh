@@ -1,0 +1,23 @@
+
+
+Worker can do:
+
+DES brute force attack (1 block - 8 bytes data and 8 bytes key)
+
+crypt brute force
+- dictionary?
+
+Lucene index of shakespears works
+- single instance downloads from source and everyone else gets from him
+- a bunch of nodes spin up, index the source, and answer queries
+- another bunch of nodes ask questions
+- membership of askers/answers is in the chat room
+
+Monitoring node
+(I decide I'm going to nagios/cacti/etc)
+
+Jabber node
+- leaves a message on server for the server:port of new server
+-- since chat rooms usually leave the last few messages to replay to new room
+   entrants
+
