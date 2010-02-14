@@ -56,11 +56,12 @@ class GaohWorker
     @communal = nil
     @tasks    = {}
     @state    = :init
+    @others = {}
 
   end
 
   def status_message
-    Jabber::Message.new( nil, @state.to_s )
+    Jabber::Message.new( nil, "current: " + @state.to_s )
   end
 
   def safe_block(message=nil, *args)
@@ -69,6 +70,10 @@ class GaohWorker
     rescue StandardError => e
       puts "safe_block: #{e}"
     end
+  end
+
+  def notself(name)
+    name != "gw-" + @jid.resource
   end
 
   def attempt_to_register
@@ -97,8 +102,10 @@ class GaohWorker
     @communal.add_message_callback { |m| safe_block("communal", m) do
         # Ignore it if it was sent before I got here
         if m.x.nil?
-          puts m.subject, m.body
-          if m.body == "status"
+          if m.body == "dump"
+            puts "----- OTHERS -----"
+            puts YAML.dump(@others)
+          elsif m.body == "status"
             begin
               @communal.send( status_message )
             rescue StandardError => e
@@ -107,6 +114,10 @@ class GaohWorker
           elsif m.body == "quit"
             @state = :exit
             @mainloop.wakeup
+          elsif m.body =~ /^current: (\S+)/
+            if notself(m.from.resource)
+              @others[m.from.resource] = $1
+            end
           else
             case @state
             when :idle
@@ -117,10 +128,15 @@ class GaohWorker
         end
       end }
     @communal.add_join_callback { |m| safe_block("communal", m) do
-        puts m.x
+      end }
+    @communal.add_leave_callback { |m| safe_block("communal", m) do
+        if notself(m.from.resource)
+          @others.delete(m.from.resource)
+        end
       end }
     @state = :idle
     @communal.join(Jabber::JID.new('gaoh-communal@conference.corgalabs.com/' + @jid.node))
+    @communal.send( status_message )
   end
 
   def run
