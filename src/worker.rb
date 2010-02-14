@@ -108,6 +108,8 @@ class GaohWorker
       @communal.send( Jabber::Message.new( nil, 
                                           "jobdone: %s: %d"%[@mytask[:name],
                                                              Time.now.to_i - @mytask[:start].to_i] ) )
+      @mytask[:start] = nil
+      @mytask[:name]  = nil
       @state = :idle
       @communal.send( status_message )
     end
