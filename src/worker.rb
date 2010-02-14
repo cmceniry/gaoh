@@ -4,6 +4,7 @@ require 'rubygems'
 require 'xmpp4r'
 require 'xmpp4r/muc'
 require 'yaml'
+require 'thread'
 
 class GaohWorker
 
@@ -51,14 +52,20 @@ class GaohWorker
     end
 
     @mainloop = Thread.current
-    @worker   = Thread.new {
-    }
+    @worker   = Thread.new {}
+    @todo      = []
+    @scheduleq = Queue.new
+    @scheduler = Thread.new { scheduler }
     @communal = nil
     @tasks    = {
       :timestamp => 0,
       :task1     => 0,
       :task2     => 0,
       :task3     => 0,
+    }
+    @mytask   = {
+      :name      => nil,
+      :start     => nil,
     }
     @state    = :init
     @others = {}
@@ -73,12 +80,64 @@ class GaohWorker
     begin
       yield *args
     rescue StandardError => e
-      puts "safe_block: #{e}"
+      puts "safe_block%s: %s:\n--%s"%[ message.nil? ? "" : "(#{message})",
+                                       e,
+                                       e.backtrace.join("\n--") ]
     end
   end
 
   def notself(name)
     name != "gw-" + @jid.resource
+  end
+
+  def worker
+    puts "Starting a new task: #{@mytask[:name]}"
+    unless @mytask[:name].nil?
+      @state = :busy
+      @mytask[:start] = Time.now
+      @communal.send( status_message )
+      case @mytask[:name]
+      when :task1
+        sleep(50+rand(21))
+      when :task2
+        sleep(75+rand(31))
+      when :task3
+        sleep(270+rand(61))
+      else
+      end
+      @communal.send( Jabber::Message.new( nil, 
+                                          "jobdone: %s: %d"%[@mytask[:name],
+                                                             Time.now.to_i - @mytask[:start].to_i] ) )
+      @state = :idle
+      @communal.send( status_message )
+    end
+  end
+
+  def scheduler
+    while true
+      #puts "Scheduler running: #{@todo.size}: #{@scheduleq.size}"
+      # Empty out any new items and add them to my todo list
+      while not @scheduleq.empty?
+        @todo << @scheduleq.pop
+      end
+      @todo.sort! { |a,b| a[0] <=> b[0] }
+      # See if there's something on my todo list to do
+      begin
+        nextup = @todo[0] || [ 2**31, nil ]
+        while nextup[0] < Time.now.to_i
+          @todo.pop
+          puts "Something todo!"
+          case nextup[1]
+          when :changetask
+            work_decide
+          end
+          nextup = @todo[0] || [ 2**31, nil ] 
+        end
+      rescue StandardError => e
+        puts "Schduler issue: #{e}\n  #{e.backtrace.join("\n  ")}"
+      end
+      sleep(1) 
+    end
   end
 
   def attempt_to_register
@@ -99,7 +158,17 @@ class GaohWorker
   end
 
   def work_decide
+    puts "Picking a new task..."
     # This is used to figure out what work to do
+    newtask = [:task1, :task2, :task3][rand(3)]
+    puts "newtask: #{newtask}"
+
+    # change task
+    if newtask != @mytask[:name]
+      @mytask[:name] = newtask
+      Thread.kill(@worker)
+      @worker = Thread.new { safe_block("work_decide:worker") { worker } }
+    end
   end
 
   def enter_communal
@@ -108,6 +177,13 @@ class GaohWorker
         # Ignore it if it was sent before I got here
         if m.x.nil?
           if m.body == "dump"
+            puts "------ DUMP ------"
+            puts Time.now
+            puts "------- ME -------"
+            puts "Scheduler running: #{@todo.size}: #{@scheduleq.size}"
+            puts @worker.inspect
+            puts @worker.status
+            puts YAML.dump(@mytask)
             puts "----- OTHERS -----"
             puts YAML.dump(@others)
           elsif m.body == "status"
@@ -126,7 +202,9 @@ class GaohWorker
           elsif m.body =~ /^tasks (\d+) (\d+) (\d+) (\d+)/
             if $1.to_i > @tasks[:timestamp]
               puts "Time to figure out new task organization"
+              @tasks[:timestamp] = $1.to_i
               @communal.send( status_message )
+              @scheduleq << [Time.now.to_i + 5, :changetask]
             end
           else
             case @state
