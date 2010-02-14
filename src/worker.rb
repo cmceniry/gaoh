@@ -73,7 +73,11 @@ class GaohWorker
   end
 
   def status_message
-    Jabber::Message.new( nil, "current: " + @state.to_s )
+    if @mytask[:name].nil?
+      Jabber::Message.new( nil, "current: idle" )
+    else
+      Jabber::Message.new( nil, "current: busy: #{@mytask[:name]}: #{Time.now.to_i - @mytask[:start].to_i}" )
+    end
   end
 
   def safe_block(message=nil, *args)
