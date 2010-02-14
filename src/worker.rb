@@ -201,7 +201,7 @@ class GaohWorker
           elsif m.body == "quit"
             @state = :exit
             @mainloop.wakeup
-          elsif m.body =~ /^current: (\S+)/
+          elsif m.body =~ /^current: (.+)/
             if notself(m.from.resource)
               @others[m.from.resource] = $1
             end
