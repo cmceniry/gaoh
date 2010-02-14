@@ -54,7 +54,12 @@ class GaohWorker
     @worker   = Thread.new {
     }
     @communal = nil
-    @tasks    = {}
+    @tasks    = {
+      :timestamp => 0,
+      :task1     => 0,
+      :task2     => 0,
+      :task3     => 0,
+    }
     @state    = :init
     @others = {}
 
@@ -117,6 +122,11 @@ class GaohWorker
           elsif m.body =~ /^current: (\S+)/
             if notself(m.from.resource)
               @others[m.from.resource] = $1
+            end
+          elsif m.body =~ /^tasks (\d+) (\d+) (\d+) (\d+)/
+            if $1.to_i > @tasks[:timestamp]
+              puts "Time to figure out new task organization"
+              @communal.send( status_message )
             end
           else
             case @state
