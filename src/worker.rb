@@ -180,7 +180,35 @@ class GaohWorker
   def work_decide
     puts "Picking a new task..."
     # This is used to figure out what work to do
-    newtask = [:task1, :task2, :task3][rand(3)]
+    counts = { :task1 => 0, :task2 => 0, :task3 => 0 }
+    unless @mytask[:name].nil?
+      counts[@mytask[:name]] += 1
+    end
+    @others.each_pair do |whom,what|
+      if what =~ /busy: (\S+): (\d+)/
+        counts[$1.to_sym] += 1
+      end
+    end
+
+    newtask = @mytask[:name]
+    # If I'm doing work
+    if not @mytask[:name].nil?
+      # Check to see if I should still be doing it
+      if counts[@mytask[:name]] > @tasks[@mytask[:name]]
+        # There's plenty of people doing this, so stop
+        newtask = nil
+      end
+    end
+
+    # If I'm not doing work (or shouldn't be doing what I was)
+    if newtask.nil?
+      # See what task isn't oversubscribed, and then randomly pick
+      possible = [:task1, :task2, :task3].reject { |s| counts[s] >= @tasks[s] }
+      if possible.size > 0
+        newtask = possible[rand(possible.size)]
+      end
+    end
+
     puts "newtask: #{newtask}"
 
     # change task
@@ -188,6 +216,9 @@ class GaohWorker
       @mytask[:name] = newtask
       Thread.kill(@worker)
       @worker = Thread.new { safe_block("work_decide:worker") { worker } }
+      if @mytask[:name].nil?
+        @communal.send( status_message )
+      end
     end
   end
 
@@ -233,9 +264,9 @@ class GaohWorker
             if $1.to_i > @tasks[:timestamp]
               puts "Time to figure out new task organization"
               @tasks[:timestamp] = $1.to_i
-              @tasks[:task1] = $2
-              @tasks[:task2] = $3
-              @tasks[:task3] = $4
+              @tasks[:task1] = $2.to_i
+              @tasks[:task2] = $3.to_i
+              @tasks[:task3] = $4.to_i
               @communal.send( status_message )
               @scheduleq << [Time.now.to_i + rand(10), :changetask]
             end
