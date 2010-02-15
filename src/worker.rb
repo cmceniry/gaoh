@@ -55,7 +55,7 @@ class GaohWorker
     @worker   = Thread.new {}
     @todo      = []
     @scheduleq = Queue.new
-    @scheduler = Thread.new { scheduler }
+    @scheduler = Thread.new { safe_block("scheduler") { scheduler } }
     @communal = nil
     @tasks    = {
       :timestamp => 0,
@@ -70,14 +70,25 @@ class GaohWorker
     @state    = :init
     @others = {}
 
+    @lastcheck = 0
+    @lasttasks = 0
+
   end
 
   def status_message
     if @mytask[:name].nil?
       Jabber::Message.new( nil, "current: idle" )
     else
-      Jabber::Message.new( nil, "current: busy: #{@mytask[:name]}: #{Time.now.to_i - @mytask[:start].to_i}" )
+      Jabber::Message.new( nil, "current: busy: #{@mytask[:name]}: #{Time.now.to_i - @mytask[:start]}" )
     end
+  end
+
+  def tasks_message
+    Jabber::Message.new( nil,
+                         "tasks %d %d %d %d"%[ @tasks[:timestamp],
+                                               @tasks[:task1],
+                                               @tasks[:task2],
+                                               @tasks[:task3] ] )
   end
 
   def safe_block(message=nil, *args)
@@ -98,7 +109,7 @@ class GaohWorker
     puts "Starting a new task: #{@mytask[:name]}"
     unless @mytask[:name].nil?
       @state = :busy
-      @mytask[:start] = Time.now
+      @mytask[:start] = Time.now.to_i
       @communal.send( status_message )
       case @mytask[:name]
       when :task1
@@ -111,7 +122,7 @@ class GaohWorker
       end
       @communal.send( Jabber::Message.new( nil, 
                                           "jobdone: %s: %d"%[@mytask[:name],
-                                                             Time.now.to_i - @mytask[:start].to_i] ) )
+                                                             Time.now.to_i - @mytask[:start]] ) )
       @mytask[:start] = nil
       @mytask[:name]  = nil
       @state = :idle
@@ -127,15 +138,18 @@ class GaohWorker
         @todo << @scheduleq.pop
       end
       @todo.sort! { |a,b| a[0] <=> b[0] }
+      #puts "SCHEDULER:#{Time.now.to_i} -- " + @todo.map { |i| "#{i[0]}:#{i[1]}" }.join(",")
       # See if there's something on my todo list to do
       begin
         nextup = @todo[0] || [ 2**31, nil ]
-        while nextup[0] < Time.now.to_i
-          @todo.pop
-          puts "Something todo!"
+        while nextup[0] <= Time.now.to_i
+          @todo.shift
+          puts "Working on #{nextup[0]}:#{nextup[1]}"
           case nextup[1]
           when :changetask
             work_decide
+          when :recheck
+            recheck
           end
           nextup = @todo[0] || [ 2**31, nil ] 
         end
@@ -177,6 +191,16 @@ class GaohWorker
     end
   end
 
+  def recheck
+    if Time.now.to_i - @lastcheck >= 60
+      @communal.send( status_message )
+      @communal.send( Jabber::Message.new( nil, "tasks?" ) )
+      @lastcheck = Time.now.to_i
+    end
+    puts "Rechecking rescheduling"
+    @scheduleq << [@lastcheck.to_i+60, :recheck]
+  end
+
   def enter_communal
     @communal = Jabber::MUC::MUCClient.new(@xmpp)
     @communal.add_message_callback { |m| safe_block("communal", m) do
@@ -184,7 +208,7 @@ class GaohWorker
         if m.x.nil?
           if m.body == "dump"
             puts "------ DUMP ------"
-            puts Time.now
+            puts Time.now.to_i
             puts "------- ME -------"
             puts "Scheduler running: #{@todo.size}: #{@scheduleq.size}"
             puts @worker.inspect
@@ -209,8 +233,16 @@ class GaohWorker
             if $1.to_i > @tasks[:timestamp]
               puts "Time to figure out new task organization"
               @tasks[:timestamp] = $1.to_i
+              @tasks[:task1] = $2
+              @tasks[:task2] = $3
+              @tasks[:task3] = $4
               @communal.send( status_message )
-              @scheduleq << [Time.now.to_i + 5, :changetask]
+              @scheduleq << [Time.now.to_i + rand(10), :changetask]
+            end
+          elsif m.body == "tasks?"
+            if Time.now.to_i - @lasttasks >= 45 and notself(m.from.resource)
+              @communal.send( tasks_message )
+              @lasttasks = Time.now.to_i
             end
           else
             case @state
@@ -230,7 +262,7 @@ class GaohWorker
       end }
     @state = :idle
     @communal.join(Jabber::JID.new('gaoh-communal@conference.corgalabs.com/' + @jid.node))
-    @communal.send( status_message )
+    @scheduleq << [Time.now.to_i, :recheck]
   end
 
   def run
