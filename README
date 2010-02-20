@@ -1,0 +1,11 @@
+Gaoh is proof of concept code for managing servers using XMPP.
+
+Code of note:
+
+src/worker.rb
+  General worker which will take requests and coordinate action via a chatroom.
+
+src/dumb.rb
+  Simple client that announces presence and boot updates.
+  Takes shell commands via IM.
+    (Careful when you run this).
